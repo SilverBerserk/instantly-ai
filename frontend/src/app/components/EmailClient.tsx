@@ -36,6 +36,8 @@ const EmailClient = () => {
   const [composeOpen, setComposeOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
+
+  
   // Fetch emails from backend
   const fetchEmails = async () => {
     try {

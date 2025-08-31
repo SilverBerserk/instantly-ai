@@ -11,7 +11,8 @@ const fastify = Fastify({ logger: true });
 // Register CORS
 fastify.register(cors, {
   origin: ['http://localhost:3000'],
-  credentials: true
+  credentials: true,
+  methods: ["GET","POST"]
 });
 
 // Register database plugin (assuming you have knex setup)

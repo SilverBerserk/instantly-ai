@@ -1,4 +1,3 @@
-// frontend/components/ComposeEmailDialog.tsx
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -41,7 +40,7 @@ const ComposeEmailDialog: React.FC<ComposeEmailDialogProps> = ({ open, onClose, 
     body: '',
   });
   
-  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiPrompt, setAiPrompt] = useState('some entertaiment email for a loyal client');
   const [showAiPrompt, setShowAiPrompt] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [emailType, setEmailType] = useState<'sales' | 'followup'>('sales');
@@ -67,31 +66,61 @@ const ComposeEmailDialog: React.FC<ComposeEmailDialogProps> = ({ open, onClose, 
       });
       
       const routeData = await routeResponse.json();
-      const detectedType = routeData.type.content as 'sales' | 'followup';
+      const detectedType = routeData.type as 'sales' | 'followup';
       setEmailType(detectedType);
       
-      // Then generate the email content
-      const generateResponse = await fetch('http://localhost:3001/api/ai/generate', {
+      const response = await fetch(`http://localhost:3001/api/ai/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt: aiPrompt, 
-          type: detectedType,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: aiPrompt,
+          type: emailType,
           recipient: formData.to || 'recipient'
         }),
+        // signal: abortControllerRef.current.signal
       });
 
-      if (generateResponse.ok) {
-        const response = await generateResponse.json()
-        console.log({response})
-        setFormData(data => ({...data, subject: response.subject, body: response.content}))
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } catch (error) {
-      console.error('Error generating email:', error);
+
+      if (!response.body) {
+        throw new Error('No response body received');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let assistantResponse = '';
+
+      while (true && reader) {
+        const { done, value } = await reader.read();
+        if (done){
+          break;
+        }
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          
+          if (chunk) {
+            assistantResponse += chunk;
+            const lines = assistantResponse.split('\n\n')
+            const subject = lines.shift() ?? ''
+            const body = lines.join('\n\n');
+            setFormData(formData => ({...formData, subject, body }));
+          }
+        }
+      }
+    } catch (error: unknown) {
+      const err = error as Error
+      if (err.name === 'AbortError') {
+        // updateLastMessage('Response cancelled.');
+        setAiPrompt('Response cancelled.')
+      } else {
+        setAiPrompt(`Error: ${err.message}`)
+      }
     } finally {
       setIsGenerating(false);
-      setShowAiPrompt(false);
-      setAiPrompt('');
     }
   };
 
@@ -125,8 +154,7 @@ const ComposeEmailDialog: React.FC<ComposeEmailDialogProps> = ({ open, onClose, 
       default: return 'default';
     }
   };
-
-
+  
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
